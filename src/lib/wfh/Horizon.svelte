@@ -3,10 +3,11 @@
   import { onMount } from "svelte";
 
   onMount(() => {
+    // Make the SVG scalable by using a viewBox. Concrete display size is controlled by Tailwind classes on the <svg> element.
     const svg = d3
       .select("#altitude-indicator")
-      .attr("width", 300)
-      .attr("height", 300);
+      .attr("viewBox", "0 0 300 300")
+      .attr("preserveAspectRatio", "xMidYMid meet");
 
     // Define the mask first, before any elements that use it
     const defs = svg.append("defs");
@@ -106,5 +107,8 @@
   });
 </script>
 
-<svg id="altitude-indicator"></svg>
+<!-- Responsive SVG: size controlled with Tailwind. On small screens it will shrink, on md/lg it grows. -->
+<div class="w-full flex items-center justify-center">
+  <svg id="altitude-indicator" class="w-40 h-40 sm:w-56 sm:h-56 md:w-72 md:h-72 lg:w-80 lg:h-80"></svg>
+</div>
 
