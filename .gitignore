@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.svelte-kit/
+.output
+.vercel
+.netlify
+.wrangler
+
+# Environment variables
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*storybook.log
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+storybook-static/
+
+# Storybook examples
+src/stories/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/mcp.json
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Vite specific
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Package manager
+.pnpm-store/
+.yarn/
