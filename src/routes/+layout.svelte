@@ -6,6 +6,7 @@
 </script>
 
 <svelte:head>
+	<title>Mission Control</title>
 	<!-- <link rel="icon" href={favicon} /> -->
 </svelte:head>
 
