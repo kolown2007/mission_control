@@ -28,6 +28,9 @@
     }
   }
 
+  import { createEventDispatcher } from 'svelte';
+  const dispatch = createEventDispatcher();
+
   function requestLocation() {
     if (!navigator?.geolocation) {
       error = 'Geolocation not supported by this browser';
@@ -49,6 +52,8 @@
         }).catch(() => {
           placeName = null;
         });
+        // notify parent components about the new location
+        dispatch('location', { latitude, longitude });
         fetchData();
       },
       (err) => {
