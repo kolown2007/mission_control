@@ -3,7 +3,7 @@
   import Time from './Time.svelte';
   import Pulsar from './Pulsar.svelte';
   import Horizon from './Horizon.svelte';
-  import Wavy from './Wavy.svelte';
+  import OpenMeteo from './OpenMeteo.svelte';
 </script>
 
 <svelte:head>
@@ -27,7 +27,7 @@
     </div>
 
     <div class="relative border border-[#00ff0080] rounded-2xl flex items-center justify-center p-2.5 h-full">
-      <Wavy />
+      <OpenMeteo latitude={14.48} longitude={121.0} />
     </div>
   </div>
 </div>
