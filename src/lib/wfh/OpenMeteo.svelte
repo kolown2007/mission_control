@@ -126,7 +126,7 @@
   }
 </script>
 
-<div class="w-full h-full p-4 box-border text-[#00FF00]">
+<div class="w-full p-4 box-border text-[#00FF00] min-h-0">
   
 
   {#if loading}
@@ -135,42 +135,38 @@
     <div class="text-sm text-red-400">Error: {error}</div>
   {:else}
     <!-- Two-column layout: left = current, right = hourly list -->
-    <div class="w-full h-full flex flex-col md:flex-row gap-4">
-      <div class="md:w-1/2 w-full relative flex items-center justify-center border border-[#00ff0080] rounded p-4 box-border">
-        <div class="absolute top-2 left-1/2 transform -translate-x-1/2 flex items-center gap-2">
-          {#if geoStatus === 'granted'}
-            <div class="text-xs">Using device location</div>
-          {:else if geoStatus === 'requesting'}
-            <div class="text-xs">Requesting location…</div>
-          {:else if geoStatus === 'denied'}
-            <div class="text-xs">Location denied</div>
-          {/if}
-          <button class="text-xs border rounded px-2 py-0.5 hover:bg-[#003300]" on:click={requestLocation}>
-            Use
-          </button>
-        </div>
-        <div class="w-full text-center">
-          <div class="text-sm uppercase tracking-wider">Current {#if placeName}({placeName}) {/if}(lat: {latitude.toFixed(2)}, lon: {longitude.toFixed(2)})</div>
-          <div class="mt-2 font-['Space_Mono'] text-[clamp(1.4rem,6vw,3.6rem)]">
-            {#if payload.current_weather}
-              {payload.current_weather.temperature}°C
-            {:else}
-              —
-            {/if}
+    <div class="w-full flex flex-col md:flex-row gap-4">
+      <div class="md:w-1/2 w-full relative flex items-start md:items-center justify-center rounded p-4 box-border min-h-0">
+          <div class="w-full flex flex-col items-center gap-2">
+          <!-- geolocation status omitted (browser prompt is used on mount) -->
+          <div class="w-full text-center">
+            <div class="text-sm uppercase tracking-wider">
+              Current {#if placeName}<span class="ml-1">({placeName})</span>{/if}
+            </div>
+            <div class="text-xs mt-1 opacity-80">(lat: {latitude.toFixed(2)}, lon: {longitude.toFixed(2)})</div>
+
+            <!-- Temperature: reduce vw scaling so it doesn't overflow neighboring panels -->
+            <div class="mt-2 font-['Space_Mono'] text-[clamp(1.4rem,3.5vw,3rem)] md:text-[clamp(1.8rem,3.2vw,3.6rem)] lg:text-[clamp(2rem,2.6vw,4rem)]">
+              {#if payload.current_weather}
+                {payload.current_weather.temperature}°C
+              {:else}
+                —
+              {/if}
+            </div>
+            <div class="mt-2 text-base">Wind: {payload.current_weather?.windspeed ?? '—'} m/s</div>
+            <div class="mt-1 text-base">Pressure: {getPressureForCurrent() ?? '—'} hPa</div>
           </div>
-          <div class="mt-2 text-base">Wind: {payload.current_weather?.windspeed ?? '—'} m/s</div>
-          <div class="mt-1 text-base">Pressure: {getPressureForCurrent() ?? '—'} hPa</div>
         </div>
       </div>
 
-  <div class="md:w-1/2 w-full border border-[#00ff0080] rounded p-3 box-border overflow-visible">
+  <div class="md:w-1/2 w-full rounded p-3 box-border overflow-visible min-h-0">
   <div class="text-sm uppercase tracking-wider text-center">Next {hours} hours</div>
-        <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-sm font-['Space_Mono']">
+            <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-sm font-['Space_Mono']">
           {#each firstNHours(hours) as h}
-            <div class="p-2 border border-[#00ff0080] rounded flex flex-col items-center justify-center min-h-12">
-              <div class="truncate text-[0.85rem]">{new Date(h.time).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
-              <div class="mt-1 text-lg">{Math.round(h.temp)}°</div>
-              <div class="mt-1 text-sm">{Math.round(h.wind)} m/s</div>
+            <div class="p-1.5 rounded flex flex-col items-center justify-center min-h-10">
+              <div class="truncate text-[0.78rem]">{new Date(h.time).toLocaleTimeString([], {hour: 'numeric', hour12: true})}</div>
+              <div class="mt-0.5 text-base">{Math.round(h.temp)}°</div>
+              <div class="mt-0.5 text-xs">{Math.round(h.wind)} m/s</div>
             </div>
           {/each}
         </div>
