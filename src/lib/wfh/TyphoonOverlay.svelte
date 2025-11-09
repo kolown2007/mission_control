@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
 
-  // default to a local KMZ file served via the proxy for convenience
-  const DEFAULT_KML = '/api/proxy/kml?local=wp3225.kmz';
+  // default data source: use the prepared JSON API on your server (preferred)
+  // This points to the kolown API which returns the pre-parsed typhoon track JSON.
+  // Override by passing `kmlUrl` prop when using the component.
+  const DEFAULT_KML = 'https://kolown.net/api/typhoon/track';
   export let kmlUrl: string = DEFAULT_KML;
   const dispatch = createEventDispatcher();
 
@@ -197,6 +199,12 @@
         let chosen = observedWithTime.find(x => x.t.getTime() <= now.getTime()) || observedWithTime[0];
         if (chosen) {
           chosen.f.properties = { ...(chosen.f.properties || {}), isCurrent: true };
+          // debug: expose and log the chosen current feature so we can inspect why it isn't pulsing
+          try {
+            // attach to window for quick inspection in devtools
+            (window as any).__currentTyphoon = chosen.f;
+          } catch (err) {}
+          console.info('[TyphoonOverlay] chosen current feature:', chosen.f);
           // dispatch current feature for external consumers
           try { dispatch('current', chosen.f); } catch (e) {}
         }
@@ -244,6 +252,10 @@
 
           if (currentFeature) {
             pointFeatures.push(currentFeature);
+            try {
+              (window as any).__currentTyphoon = currentFeature;
+            } catch (err) {}
+            console.info('[TyphoonOverlay] created/interpolated current feature:', currentFeature);
             try { dispatch('current', currentFeature); } catch (e) {}
           }
         }
@@ -255,36 +267,179 @@
     return { lineFeatures, pointFeatures, radiusDefs };
   }
 
+  // choose a canonical current point from an array of pointFeatures.
+  // This mirrors the logic used when parsing KML so API-parsed points also get an isCurrent flag
+  function selectCurrent(pointFeatures: any[]) {
+    try {
+      // clear any existing isCurrent flags
+      for (const pf of pointFeatures) {
+        if (pf.properties) pf.properties.isCurrent = !!pf.properties.isCurrent;
+      }
+
+      const now = new Date();
+      const observedWithTime = pointFeatures
+        .filter(p => p.properties?.tag === 'observed' && p.properties?.time)
+        .map(p => ({ f: p, t: new Date(p.properties.time) }))
+        .filter(x => x.t instanceof Date && !isNaN(x.t.getTime()))
+        .sort((a, b) => b.t.getTime() - a.t.getTime()); // newest first
+
+      if (observedWithTime.length) {
+        // pick the newest observed point (prefer one with time <= now if available)
+        let chosen = observedWithTime.find(x => x.t.getTime() <= now.getTime()) || observedWithTime[0];
+        if (chosen) {
+          chosen.f.properties = { ...(chosen.f.properties || {}), isCurrent: true };
+          try { (window as any).__currentTyphoon = chosen.f; } catch (err) {}
+          try { dispatch('current', chosen.f); } catch (e) {}
+        }
+      } else {
+        // fallback: build points with times and interpolate
+        const ptsWithTime = pointFeatures
+          .map(p => ({ f: p, t: p.properties?.time ? new Date(p.properties.time) : null }))
+          .filter(x => x.t instanceof Date && !isNaN(x.t.getTime()))
+          .sort((a, b) => (a.t!.getTime() - b.t!.getTime()));
+        if (ptsWithTime.length) {
+          // find bracketing points
+          let prev = ptsWithTime[0];
+          let next = null;
+          for (let i = 0; i < ptsWithTime.length; i++) {
+            if (ptsWithTime[i].t!.getTime() <= now.getTime()) prev = ptsWithTime[i];
+            if (ptsWithTime[i].t!.getTime() > now.getTime()) { next = ptsWithTime[i]; break; }
+          }
+
+          let currentFeature = null;
+          if (!next) {
+            // now is after last known point: use last point as current
+            currentFeature = { ...prev.f };
+            currentFeature.properties = { ...(currentFeature.properties || {}), isCurrent: true };
+          } else if (!prev || prev.t!.getTime() === next.t!.getTime()) {
+            // use next as current
+            currentFeature = { ...next.f };
+            currentFeature.properties = { ...(currentFeature.properties || {}), isCurrent: true };
+          } else {
+            // interpolate
+            const t0 = prev.t!.getTime();
+            const t1 = next.t!.getTime();
+            const frac = (now.getTime() - t0) / (t1 - t0);
+            const [lon0, lat0] = prev.f.geometry.coordinates;
+            const [lon1, lat1] = next.f.geometry.coordinates;
+            const ilon = lon0 + (lon1 - lon0) * frac;
+            const ilat = lat0 + (lat1 - lat0) * frac;
+            const wk0 = prev.f.properties?.wind_kph ?? (prev.f.properties?.wind_kts != null ? Math.round(prev.f.properties.wind_kts * 1.852) : null);
+            const wk1 = next.f.properties?.wind_kph ?? (next.f.properties?.wind_kts != null ? Math.round(next.f.properties.wind_kts * 1.852) : null);
+            const iwk = (wk0 != null && wk1 != null) ? Math.round(wk0 + (wk1 - wk0) * frac) : (wk0 ?? wk1 ?? null);
+            const props: any = { isCurrent: true, interpolatedFrom: prev.f.properties?.name ?? null, interpolatedTo: next.f.properties?.name ?? null, interpolatedFraction: frac };
+            if (iwk != null) props.wind_kph = iwk;
+            props.time = now.toISOString();
+            currentFeature = { type: 'Feature', geometry: { type: 'Point', coordinates: [ilon, ilat] }, properties: props };
+          }
+
+          if (currentFeature) {
+            pointFeatures.push(currentFeature);
+            try { (window as any).__currentTyphoon = currentFeature; } catch (err) {}
+            try { dispatch('current', currentFeature); } catch (e) {}
+          }
+        }
+      }
+    } catch (err) {
+      // non-fatal
+    }
+  }
+
+  // parse the JSON API response (kolown style) into lineFeatures / pointFeatures
+  function parseApiToGeoFeatures(apiJson: any) {
+    const pointFeatures: any[] = [];
+    const lineCoords: [number, number][] = [];
+
+    const items = Array.isArray(apiJson.features) ? apiJson.features : (Array.isArray(apiJson) ? apiJson : (apiJson && apiJson.features ? apiJson.features : []));
+    for (const it of items) {
+      try {
+        const lon = Number(it.lon);
+        const lat = Number(it.lat);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        const time = it.time_utc ?? it.time ?? null;
+        const wind_kts = it.wind_kts != null ? Number(it.wind_kts) : (it.wind_kts_alt != null ? Number(it.wind_kts_alt) : null);
+        const wind_kph = wind_kts != null ? Math.round(wind_kts * 1.852) : null;
+
+        const props: any = {
+          name: it.name ?? null,
+          raw: it.raw ?? null,
+          time: time || null,
+          wind_kts: wind_kts,
+          wind_kph: wind_kph,
+          tag: null,
+          source: it.source ?? null
+        };
+
+        if (props.time) {
+          const t = new Date(props.time);
+          props.tag = (!isNaN(t.getTime()) && t.getTime() > Date.now()) ? 'forecast' : 'observed';
+        }
+
+        // build label preferring km/h
+        if (props.name || props.raw) {
+          let label = props.name ?? '';
+          if (wind_kph != null) label = `${label} ${wind_kph} km/h`.trim();
+          props.label = label || null;
+        }
+
+        pointFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: props });
+        lineCoords.push([lon, lat]);
+      } catch (err) {
+        continue;
+      }
+    }
+
+    // if time present on all, sort by time
+    if (pointFeatures.length && pointFeatures.every(p => p.properties?.time)) {
+      pointFeatures.sort((a, b) => new Date(a.properties.time).getTime() - new Date(b.properties.time).getTime());
+      const coords = pointFeatures.map(p => p.geometry.coordinates);
+      return { lineFeatures: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: { name: 'Track' } }], pointFeatures, radiusDefs: [] };
+    }
+
+    if (lineCoords.length > 1) {
+      return { lineFeatures: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: lineCoords }, properties: { name: 'Track' } }], pointFeatures, radiusDefs: [] };
+    }
+
+    return { lineFeatures: [], pointFeatures, radiusDefs: [] };
+  }
+
   async function fetchAndDispatch() {
     if (!kmlUrl) return;
     try {
-      console.info('[TyphoonOverlay] fetching KML from', kmlUrl);
+      console.info('[TyphoonOverlay] fetching from', kmlUrl);
       dispatch('log', { message: `fetch ${kmlUrl}` });
       const res = await fetch(kmlUrl);
       console.info('[TyphoonOverlay] response status', res.status);
       dispatch('log', { message: `response ${res.status}` });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const txt = await res.text();
-      rawKml = txt;
-      console.debug('[TyphoonOverlay] fetched kml length', txt.length);
-      dispatch('log', { message: `fetched ${txt.length} bytes` });
+
       let lineFeatures: any[] = [];
       let pointFeatures: any[] = [];
-      try {
-  const parsed = parseKmlToGeoFeatures(txt, new Date());
-        lineFeatures = parsed.lineFeatures || [];
-        pointFeatures = parsed.pointFeatures || [];
-        parseError = null;
-      } catch (pe: any) {
-        parseError = String(pe?.message || pe);
-        console.error('[TyphoonOverlay] parse error', parseError);
+      let parsedResult: any = null;
+
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('application/json') || kmlUrl.includes('/api/')) {
+        const json = await res.json();
+        parsedResult = parseApiToGeoFeatures(json);
+      } else {
+        const txt = await res.text();
+        rawKml = txt;
+        parsedResult = parseKmlToGeoFeatures(txt, new Date());
       }
+
+      if (parsedResult) {
+        lineFeatures = parsedResult.lineFeatures || [];
+        pointFeatures = parsedResult.pointFeatures || [];
+        parseError = null;
+        // ensure a canonical current point is selected for API-parsed data
+        try { selectCurrent(pointFeatures); } catch (err) {}
+      }
+
       const total = (lineFeatures.length + pointFeatures.length);
       console.info('[TyphoonOverlay] parsed features count', total);
       dispatch('log', { message: `parsed ${total} features (${lineFeatures.length} lines, ${pointFeatures.length} points)` });
       if (total) {
         const features: any[] = [];
-        // prefer keeping line features first, then points
         features.push(...lineFeatures);
         features.push(...pointFeatures);
         const geo = features.length === 1 ? features[0] : { type: 'FeatureCollection', features };
@@ -292,11 +447,11 @@
         dispatch('log', { message: `dispatched track with ${features.length} features` });
         console.info('[TyphoonOverlay] dispatched track event');
       } else {
-        console.warn('[TyphoonOverlay] No coordinates or points found in KML');
+        console.warn('[TyphoonOverlay] No coordinates or points found');
         dispatch('log', { message: 'no coordinates found' });
       }
     } catch (e: any) {
-      console.error('[TyphoonOverlay] Failed to fetch/parse KML', e);
+      console.error('[TyphoonOverlay] Failed to fetch/parse', e);
       parseError = String(e?.message || e);
       rawKml = rawKml ?? null;
       dispatch('log', { message: `error: ${e?.message || e}` });

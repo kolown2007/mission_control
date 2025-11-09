@@ -59,6 +59,10 @@
   export let fill = 'none';
   // whether to render the connecting track line (yellow). Default false to avoid visual clutter.
   export let showTrackLine: boolean = false;
+  // display timezone for labels: 'UTC' | 'PHT' (Philippine) | 'PST' (Pacific)
+  // Default to Philippine Time (PHT) so map labels are local to the Philippines by default.
+  // Override by passing e.g. <LineMap displayTimezone="UTC" />
+  export let displayTimezone: 'UTC' | 'PHT' | 'PST' = 'PHT';
 
   onMount(async () => {
     try {
@@ -319,17 +323,40 @@
     return `${latAbs}°${latDir} ${lonAbs}°${lonDir}`;
   }
 
-  // format a Date/string into a readable UTC date+time string: YYYY-MM-DD HH:MM UTC
+  // format a Date/string into a readable date+time in the chosen timezone
   function formatTime(t?: Date | string | null) {
     if (!t) return '';
     const d = t instanceof Date ? t : new Date(t);
     if (isNaN(d.getTime())) return '';
-    const yyyy = d.getUTCFullYear();
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(d.getUTCDate()).padStart(2, '0');
-    const hh = String(d.getUTCHours()).padStart(2, '0');
-    const min = String(d.getUTCMinutes()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd} ${hh}:${min} UTC`;
+
+    // choose IANA timezone and label
+    let timeZone = 'UTC';
+    let tzLabel = 'UTC';
+    if (displayTimezone === 'PHT') { timeZone = 'Asia/Manila'; tzLabel = 'PHT'; }
+    else if (displayTimezone === 'PST') { timeZone = 'America/Los_Angeles'; tzLabel = 'PST'; }
+
+    // use Intl to get localized parts in the chosen timezone
+    // use 12-hour clock as requested (hour12: true) and include AM/PM dayPeriod
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    const parts = fmt.formatToParts(d);
+    const map: Record<string,string> = {};
+    for (const p of parts) map[p.type] = p.value;
+
+    const yyyy = map.year ?? '';
+    const mm = map.month ?? '';
+    const dd = map.day ?? '';
+    const hh = map.hour ?? '';
+    const min = map.minute ?? '';
+    const period = map.dayPeriod ? ` ${map.dayPeriod}` : '';
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}${period} ${tzLabel}`;
   }
 
   // center map on a point (use null when lon/lat undefined to satisfy types)
