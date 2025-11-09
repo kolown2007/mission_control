@@ -16,6 +16,34 @@
   let typhoonTrack: any = null;
   let typhoonLog: string | null = null;
 
+  // panels available for the bottom-right slot; clicking the slot picks a random other panel
+  const panelOptions: any[] = [
+    { id: 'OpenMeteo', comp: OpenMeteo, props: { latitude: 14.48, longitude: 121.0 } },
+    { id: 'Pulsar', comp: Pulsar, props: {} },
+    { id: 'Time', comp: Time, props: {} },
+    { id: 'LineMap', comp: LineMap, props: { centerLat, centerLon, zoom: mapZoom, track: typhoonTrack } }
+  ];
+  // start with OpenMeteo as the default
+  let lastPanelIndex = panelOptions.findIndex(p => p.id === 'OpenMeteo') >= 0 ? panelOptions.findIndex(p => p.id === 'OpenMeteo') : 0;
+
+  function pickRandomExcept(current: number) {
+    if (panelOptions.length <= 1) return current;
+    let next = current;
+    while (next === current) next = Math.floor(Math.random() * panelOptions.length);
+    return next;
+  }
+
+  function onLastDivClick() {
+    lastPanelIndex = pickRandomExcept(lastPanelIndex);
+  }
+
+  function onLastDivKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onLastDivClick();
+    }
+  }
+
   function handleTyphoonLog(e: CustomEvent<{message:string}>) {
     const m = e.detail?.message || String(e.detail);
     console.log('[TyphoonOverlay log]', m);
@@ -62,14 +90,25 @@
           {#if typhoonLog}
             <div class="absolute top-2 left-2 bg-black/60 text-[#00FF00] text-xs px-2 py-1 rounded select-none z-20">{typhoonLog}</div>
           {/if}
-        </div>
+              <!-- badge image on the right-bottom edge of the LineMap panel; non-blocking -->
+              <img src="/ernie.png" alt="badge" class="absolute right-3 bottom-3 w-48 h-48 opacity-95 pointer-events-none z-20" />
+          </div>
 
         <div class="relative border border-[#00ff0080] rounded-2xl flex items-center justify-center p-2.5 h-full min-h-0 overflow-hidden">
           <Pulsar />
         </div>
 
         <div class="relative border border-[#00ff0080] rounded-2xl flex items-center justify-center p-2.5 h-full min-h-0 overflow-hidden">
-          <OpenMeteo latitude={14.48} longitude={121.0} on:location={handleLocation} />
+          <div role="button" tabindex="0" class="w-full h-full flex items-stretch justify-center relative" on:click={onLastDivClick} on:keydown={onLastDivKey} aria-label="Switch panel">
+            <div class="flex-1 flex items-center justify-center">
+              <svelte:component this={panelOptions[lastPanelIndex].comp}
+                {...panelOptions[lastPanelIndex].props}
+                on:location={handleLocation}
+              />
+            </div>
+              <!-- Removed static image from the right side; pointer-events:none so clicks go to the panel underneath -->
+            
+          </div>
         </div>
       </div>
     {:else}
