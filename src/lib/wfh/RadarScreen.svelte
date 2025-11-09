@@ -5,6 +5,7 @@
   import LineMap from './LineMap.svelte';
   import OpenMeteo from './OpenMeteo.svelte';
   import { onMount } from 'svelte';
+  import TyphoonOverlay from './TyphoonOverlay.svelte';
 
   let centerLat: number | null = null;
   let centerLon: number | null = null;
@@ -12,6 +13,18 @@
   let mapZoom = 2.4;
   // track window width so we can avoid rendering heavy panels on small screens
   let innerWidth = 0;
+  let typhoonTrack: any = null;
+  let typhoonLog: string | null = null;
+
+  function handleTyphoonLog(e: CustomEvent<{message:string}>) {
+    const m = e.detail?.message || String(e.detail);
+    console.log('[TyphoonOverlay log]', m);
+    typhoonLog = m;
+    // clear after 8s
+    setTimeout(() => {
+      if (typhoonLog === m) typhoonLog = null;
+    }, 8000);
+  }
 
   onMount(() => {
     if (typeof window === 'undefined') return;
@@ -43,7 +56,12 @@
         </div>
         
         <div class="relative border border-[#00ff0080] rounded-2xl flex items-center justify-center p-2.5 h-full min-h-0 overflow-hidden">
-          <LineMap {centerLat} {centerLon} zoom={mapZoom} />
+          <LineMap {centerLat} {centerLon} zoom={mapZoom} track={typhoonTrack} />
+          <!-- TyphoonOverlay fetches a KML and emits `track` with GeoJSON; default URL uses proxy -->
+          <TyphoonOverlay on:track={(e) => (typhoonTrack = e.detail)} on:log={handleTyphoonLog} />
+          {#if typhoonLog}
+            <div class="absolute top-2 left-2 bg-black/60 text-[#00FF00] text-xs px-2 py-1 rounded select-none z-20">{typhoonLog}</div>
+          {/if}
         </div>
 
         <div class="relative border border-[#00ff0080] rounded-2xl flex items-center justify-center p-2.5 h-full min-h-0 overflow-hidden">

@@ -92,6 +92,7 @@
   });
 
   // Helpers
+  const mpsToKph = (v: number | null | undefined) => (v == null ? null : Math.round(v * 3.6));
   function getPressureForCurrent() {
     if (!payload?.hourly) return null;
     const times: string[] = payload.hourly.time || [];
@@ -141,9 +142,10 @@
           <!-- geolocation status omitted (browser prompt is used on mount) -->
           <div class="w-full text-center">
             <div class="text-sm uppercase tracking-wider">
-              Current {#if placeName}<span class="ml-1">({placeName})</span>{/if}
+               {#if placeName}<span class="ml-1">({placeName})</span>{/if}
             </div>
-            <div class="text-xs mt-1 opacity-80">(lat: {latitude.toFixed(2)}, lon: {longitude.toFixed(2)})</div>
+            <!-- Hidden: latitude/longitude display removed for now -->
+            <!-- <div class="text-xs mt-1 opacity-80">(lat: {latitude.toFixed(2)}, lon: {longitude.toFixed(2)})</div> -->
 
             <!-- Temperature: reduce vw scaling so it doesn't overflow neighboring panels -->
             <div class="mt-2 font-['Space_Mono'] text-[clamp(1.4rem,3.5vw,3rem)] md:text-[clamp(1.8rem,3.2vw,3.6rem)] lg:text-[clamp(2rem,2.6vw,4rem)]">
@@ -153,7 +155,7 @@
                 —
               {/if}
             </div>
-            <div class="mt-2 text-base">Wind: {payload.current_weather?.windspeed ?? '—'} m/s</div>
+            <div class="mt-2 text-base">Wind: {payload.current_weather?.windspeed != null ? `${mpsToKph(payload.current_weather.windspeed)} km/h` : '—'}</div>
             <div class="mt-1 text-base">Pressure: {getPressureForCurrent() ?? '—'} hPa</div>
           </div>
         </div>
@@ -166,7 +168,7 @@
             <div class="p-1.5 rounded flex flex-col items-center justify-center min-h-10">
               <div class="truncate text-[0.78rem]">{new Date(h.time).toLocaleTimeString([], {hour: 'numeric', hour12: true})}</div>
               <div class="mt-0.5 text-base">{Math.round(h.temp)}°</div>
-              <div class="mt-0.5 text-xs">{Math.round(h.wind)} m/s</div>
+              <div class="mt-0.5 text-xs">{h.wind != null ? `${Math.round(h.wind * 3.6)} km/h` : '—'}</div>
             </div>
           {/each}
         </div>

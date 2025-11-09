@@ -33,6 +33,7 @@
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
 		"@tailwindcss/typography": "^0.5.19",
 		"@tailwindcss/vite": "^4.1.14",
+		"@types/adm-zip": "^0.5.7",
 		"@types/d3": "^7.4.3",
 		"@types/node": "^22",
 		"@vitest/browser": "^3.2.4",
@@ -57,6 +58,7 @@
 		"vitest-browser-svelte": "^1.1.0"
 	},
 	"dependencies": {
+		"adm-zip": "^0.5.16",
 		"d3": "^7.9.0"
 	}
 }
