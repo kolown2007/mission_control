@@ -2,27 +2,26 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 
-	// Receive server-provided data via the `data` prop (from +layout.server.ts)
+	// receive server-provided data (from +layout.server.ts)
 	export let data: any;
 
 	let alerted = false;
 
-	// Alert the user once if the server reported an authenticated user.
-	$: if (!alerted && data?.user) {
-		// Run after hydration so we don't block SSR -> client transition.
+	$: if (!alerted && data?.ssoPresent) {
+		// run after hydration
 		setTimeout(() => {
 			try {
-				alert(`SSO detected: user id=${data.user.id}`);
+				alert('SSO cookie detected');
 			} catch (e) {
-				console.info('[auth-alert] SSO detected, user id=', data.user.id);
+				console.info('[auth-alert] SSO cookie detected');
 			}
 			alerted = true;
 		}, 0);
 	}
 
 	onMount(() => {
-		if (!alerted && data?.user) {
-			alert(`SSO detected: user id=${data.user.id}`);
+		if (!alerted && data?.ssoPresent) {
+			alert('SSO cookie detected');
 			alerted = true;
 		}
 	});

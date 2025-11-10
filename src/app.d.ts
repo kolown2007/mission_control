@@ -1,6 +1,8 @@
 declare namespace App {
   interface Locals {
-    user?: { id: number } | null;
+		user?: { id: number } | null;
+		// simple flag indicating whether kolown_sso cookie was present on the request
+		ssoPresent?: boolean;
   }
 }
 
