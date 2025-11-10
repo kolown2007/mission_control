@@ -1,38 +1,17 @@
 <script lang="ts">
 	import '../app.css';
-	import { onMount } from 'svelte';
 
-	// receive server-provided data (from +layout.server.ts)
-	export let data: any;
+	// receive server-provided data (see +layout.server.ts)
+	export let data: { ssoPresent?: boolean };
 
-	let alerted = false;
-
-		$: if (!alerted && (data?.ssoPresent)) {
-		// run after hydration
-		setTimeout(() => {
-			try {
-				alert('SSO cookie detected');
-			} catch (e) {
-				console.info('[auth-alert] SSO cookie detected');
-			}
-			alerted = true;
-		}, 0);
-	}
-
-		onMount(() => {
-			// Also check document.cookie on the client in case the cookie wasn't
-			// sent on the initial document request (e.g., set afterwards or domain/secure mismatch).
-			const clientHas = typeof document !== 'undefined' && document.cookie.includes('kolown_sso=');
-
-			if (!alerted && (data?.ssoPresent || clientHas)) {
-				alert('SSO cookie detected');
-				alerted = true;
-			}
-		});
+	// theme color used by some browsers to tint the title/toolbar area
+	const themeColor = data?.ssoPresent ? '#28a745' : '#0b1220';
 </script>
 
 <svelte:head>
 	<title>Mission Control</title>
+	<meta name="theme-color" content={themeColor} />
+	<!-- Helpful for Windows/Edge/Chrome and many mobile browsers -->
 </svelte:head>
 
 <slot />
