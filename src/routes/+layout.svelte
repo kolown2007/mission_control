@@ -7,7 +7,7 @@
 
 	let alerted = false;
 
-	$: if (!alerted && data?.ssoPresent) {
+		$: if (!alerted && (data?.ssoPresent)) {
 		// run after hydration
 		setTimeout(() => {
 			try {
@@ -19,12 +19,16 @@
 		}, 0);
 	}
 
-	onMount(() => {
-		if (!alerted && data?.ssoPresent) {
-			alert('SSO cookie detected');
-			alerted = true;
-		}
-	});
+		onMount(() => {
+			// Also check document.cookie on the client in case the cookie wasn't
+			// sent on the initial document request (e.g., set afterwards or domain/secure mismatch).
+			const clientHas = typeof document !== 'undefined' && document.cookie.includes('kolown_sso=');
+
+			if (!alerted && (data?.ssoPresent || clientHas)) {
+				alert('SSO cookie detected');
+				alerted = true;
+			}
+		});
 </script>
 
 <svelte:head>
