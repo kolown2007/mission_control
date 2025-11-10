@@ -33,7 +33,15 @@ export const handle: Handle = async ({ event, resolve }) => {
   // is performed — the hook only detects/validates the cookie and sets
   // `event.locals.user` for downstream server code.
   if (hookLogMessage && contentType.includes('text/html')) {
-    console.log(hookLogMessage);
+    // Only log in non-production to avoid noisy logs in production.
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(hookLogMessage);
+      }
+    } catch (e) {
+      // If process isn't available for some reason, fall back to logging.
+      console.log(hookLogMessage);
+    }
   }
 
   return response;
