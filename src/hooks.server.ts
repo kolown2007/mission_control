@@ -1,38 +1,63 @@
 import type { Handle } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 
-const KOLOWN_BASE = env.KOLOWN_BASE_URL ?? 'https://kolown.net';
+const VALIDATE_URL = env.SSO_VALIDATE_URL ?? '/api/sso/validate';
 
 export const handle: Handle = async ({ event, resolve }) => {
-  // Read HttpOnly cookie (client JS cannot access this)
+  // Read the HttpOnly domain cookie
   const token = event.cookies.get('kolown_sso');
-  // mark whether the request had the SSO cookie at all
-  event.locals.ssoPresent = Boolean(token);
+  let user = null;
+  let ssoPresent = false;
 
   if (token) {
+    ssoPresent = true;
     try {
-      // use the request-scoped fetch so adapters and cookies behave consistently
-      const res = await event.fetch(`${KOLOWN_BASE}/api/sso/validate`, {
+      // Forward the request cookies so Laravel can read kolown_sso
+      const cookieHeader = event.request.headers.get('cookie') ?? `kolown_sso=${token}`;
+
+      // Use event.fetch so the adapter/context is preserved
+      const res = await event.fetch(VALIDATE_URL, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json'
-        }
+          // ensure server-to-server call includes cookie header
+          cookie: cookieHeader,
+          accept: 'application/json'
+        },
+        // include credentials if validate is cross-origin and requires them
+        credentials: 'include'
       });
 
       if (res.ok) {
-        // expected: { id, name, email, ... }
-        event.locals.user = (await res.json()) as App.User;
+        const payload = await res.json().catch(() => null);
+        // Laravel may return { user: { ... } } or the user directly — handle both
+        const resolved = payload?.user ?? payload ?? null;
+
+        // add a lightweight server-side hint about payload shape for debugging
+        try {
+          (event.locals as any).userInfoKeys = resolved ? Object.keys(resolved) : null;
+        } catch {
+          (event.locals as any).userInfoKeys = null;
+        }
+
+        // minimal shape guard
+        if (resolved && (typeof resolved.id === 'string' || typeof resolved.id === 'number')) {
+          user = { id: resolved.id, name: resolved.name ?? null, email: resolved.email ?? null };
+        } else {
+          // unexpected shape — keep user null
+          user = null;
+        }
       } else {
-        event.locals.user = null;
+        user = null;
       }
     } catch (err) {
-      // network/other error -> treat as unauthenticated
-      event.locals.user = null;
+      console.error('[hooks] SSO validate failed', err);
+      user = null;
     }
-  } else {
-    event.locals.user = null;
   }
+
+  // Expose to server-side loads
+  event.locals.user = user;
+  event.locals.ssoPresent = ssoPresent;
 
   return await resolve(event);
 };
