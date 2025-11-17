@@ -1,48 +1,38 @@
 import type { Handle } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
+
+const KOLOWN_BASE = env.KOLOWN_BASE_URL ?? 'https://kolown.net';
 
 export const handle: Handle = async ({ event, resolve }) => {
-  const sso = event.cookies.get('kolown_sso'); // server-side only
-  // Use a safe cast to avoid TypeScript errors if the App.Locals augmentation
-  // isn't picked up by the compiler in this environment.
-  const locals = event.locals as any;
+  // Read HttpOnly cookie (client JS cannot access this)
+  const token = event.cookies.get('kolown_sso');
+  // mark whether the request had the SSO cookie at all
+  event.locals.ssoPresent = Boolean(token);
 
-  // Prepare a short log message we can both server-log and optionally inject
-  // into HTML responses so the browser console shows it (useful when you
-  // can't access the server terminal). Injection is opt-in via query param
-  // `?auth_debug=1` or cookie `kolown_sso_debug=1`.
-  let hookLogMessage: string | null = null;
-
-  // Simply detect presence of the kolown_sso cookie and set a boolean flag
-  // on locals. Do not parse or expose any user id here; the caller only
-  // wanted a simple present/not-present boolean.
-  const ssoPresent = !!sso;
-  locals.ssoPresent = ssoPresent;
-
-  if (ssoPresent) {
-    hookLogMessage = '[auth-hook] kolown_sso present';
-  } else {
-    hookLogMessage = '[auth-hook] kolown_sso not found';
-  }
-
-  const response = await resolve(event);
-
-  const contentType = response.headers.get('content-type') || '';
-
-  // Log once for HTML responses only to avoid duplicate logs from
-  // asset/XHR requests that also hit this hook. No client-side injection
-  // is performed — the hook only detects/validates the cookie and sets
-  // `event.locals.user` for downstream server code.
-  if (hookLogMessage && contentType.includes('text/html')) {
-    // Only log in non-production to avoid noisy logs in production.
+  if (token) {
     try {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(hookLogMessage);
+      // use the request-scoped fetch so adapters and cookies behave consistently
+      const res = await event.fetch(`${KOLOWN_BASE}/api/sso/validate`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        // expected: { id, name, email, ... }
+        event.locals.user = (await res.json()) as App.User;
+      } else {
+        event.locals.user = null;
       }
-    } catch (e) {
-      // If process isn't available for some reason, fall back to logging.
-      console.log(hookLogMessage);
+    } catch (err) {
+      // network/other error -> treat as unauthenticated
+      event.locals.user = null;
     }
+  } else {
+    event.locals.user = null;
   }
 
-  return response;
+  return await resolve(event);
 };
