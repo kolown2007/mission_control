@@ -18,8 +18,6 @@ export const load = async ({ locals }: any) => {
 
   return {
     ssoPresent,
-    user,
-    // TEMP: expose keys returned by the validate endpoint for debugging
-    userInfoKeys: (locals as any).userInfoKeys ?? null
+    user
   };
 };

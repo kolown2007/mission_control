@@ -1,7 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
 
-const VALIDATE_URL = env.SSO_VALIDATE_URL ?? '/api/sso/validate';
+// Hardcoded validate URL (use the main auth host)
+const VALIDATE_URL = 'https://kolown.net/api/sso/validate';
 
 export const handle: Handle = async ({ event, resolve }) => {
   // Read the HttpOnly domain cookie
@@ -31,13 +31,6 @@ export const handle: Handle = async ({ event, resolve }) => {
         const payload = await res.json().catch(() => null);
         // Laravel may return { user: { ... } } or the user directly — handle both
         const resolved = payload?.user ?? payload ?? null;
-
-        // add a lightweight server-side hint about payload shape for debugging
-        try {
-          (event.locals as any).userInfoKeys = resolved ? Object.keys(resolved) : null;
-        } catch {
-          (event.locals as any).userInfoKeys = null;
-        }
 
         // minimal shape guard
         if (resolved && (typeof resolved.id === 'string' || typeof resolved.id === 'number')) {
