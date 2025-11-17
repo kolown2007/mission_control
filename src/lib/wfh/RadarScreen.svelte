@@ -8,7 +8,6 @@
   import TyphoonOverlay from './components/TyphoonOverlay.svelte';
   import Strudel from './components/Strudel.svelte';
 
-  export let user: { id: string | number; name?: string | null } | null = null;
   let centerLat: number | null = null;
   let centerLon: number | null = null;
   // increased default zoom so the map appears closer by default
@@ -82,7 +81,7 @@
     {#if innerWidth >= 768}
       <div class="grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 grid-rows-4 gap-5 w-full max-w-none h-full text-[#00FF00] font-['Space_Mono']">
         <div class="relative border border-[#00ff0080] rounded-2xl flex items-center justify-center p-2.5 h-full min-h-0 overflow-hidden">
-          <Time name={user?.name} />
+          <Time />
         </div>
         
         <div class="relative border border-[#00ff0080] rounded-2xl flex items-center justify-center p-2.5 h-full min-h-0 overflow-hidden">

@@ -4,9 +4,9 @@
   // @ts-ignore
   import WFH from '$lib/wfh/RadarScreen.svelte';
 
-  export let data: any;
+  
 </script>
 
 <main>
-  <WFH user={data?.user} />
+  <WFH />
 </main>
